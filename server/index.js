@@ -4,6 +4,8 @@ var http    = require("http").Server(app);
 var io      = require("socket.io")(http);
 var room    = require("./room.json");
 
+app.use(express.static(__dirname + '/../client'));
+
 var config = {
   "tileSize": 50,
   "radius": 100,
@@ -12,16 +14,15 @@ var config = {
   "border": 200,
   "playerSize": 24
 };
-
+var finish = {
+  x: 48,
+  y: 18
+}
 var speed = 0.05;
 
 var sockets = {};
 var players = [];
 var lights = [];
-
-var oldTime = new Date().getTime(), time = new Date().getTime();
-
-app.use(express.static(__dirname + '/../client'));
 
 io.on("connection", function(socket){
   var currPlayer = {
@@ -98,9 +99,9 @@ function findID(id){
   return -1;
 }
 
-function findLight(x){
+function findLight(x, y){
   for(var i=0;i<lights.length;i++){
-    if(lights[i].x === x) return i;
+    if(lights[i].x === x && lights[i].y === y) return i;
   }
   return -1;
 };
@@ -109,7 +110,7 @@ function newLight(xx, yy){
   lights.push({x: xx, y: yy, fade: 1.0});
   setTimeout(function(){
     var int = setInterval(function(){
-      var index = findLight(xx);
+      var index = findLight(xx, yy);
       if(index > -1){
         lights[index].fade -= .02;
         if(lights[index].fade <= 0){
@@ -121,11 +122,8 @@ function newLight(xx, yy){
   }, 60000);
 }
 
-function encode(values){
-  var size = values.length / 16 + 1 >> 0,
-      offset = 0,
-      packed = "";
-
+function encodeRoom(values){
+  var size = values.length / 16 + 1 >> 0, offset = 0, packed = "";
   for(var i=0;i<size;i++,offset+=16){
     packed += String.fromCharCode(parseInt(values.substring(offset, offset + 16), 2));
   }
@@ -137,88 +135,80 @@ function encode(values){
   }
   return -1;
 }*/
+
 function movePlayers(){
   for(var i=0;i<players.length;i++){
-    if(players[i] === "undefined") return;
     if(players[i].move.up) players[i].y -= 5;
     if(players[i].move.down) players[i].y += 5;
     if(players[i].move.left) players[i].x -= 5;
     if(players[i].move.right) players[i].x += 5;
 
-    if(players[i].x < config.playerSize/2) players[i].x = config.playerSize/2;
-    else if(players[i].x > config.roomWidth-config.playerSize/2-1) players[i].x = config.roomWidth-config.playerSize/2-1;
-    if(players[i].y < config.playerSize/2) players[i].y = config.playerSize/2;
-    else if(players[i].y > config.roomHeight-config.playerSize/2-1) players[i].y = config.roomHeight-config.playerSize/2-1;
+    players[i].x = clamp(players[i].x, config.playerSize/2, config.roomWidth-config.playerSize/2-1);
+    players[i].y = clamp(players[i].y, config.playerSize/2, config.roomHeight-config.playerSize/2-1);
 
-    if(players[i].x-players[i].xoffset < config.border) players[i].xoffset = players[i].x-config.border;
-    else if(players[i].x-players[i].xoffset > players[i].sWidth-config.border) players[i].xoffset = players[i].x-players[i].sWidth+config.border;
-    if(players[i].y-players[i].yoffset < config.border) players[i].yoffset = players[i].y-config.border;
-    else if(players[i].y-players[i].yoffset > players[i].sHeight-config.border) players[i].yoffset = players[i].y-players[i].sHeight+config.border;
+    players[i].xoffset = clamp(players[i].xoffset, players[i].x-players[i].sWidth+config.border, players[i].x-config.border);
+    players[i].yoffset = clamp(players[i].yoffset, players[i].y-players[i].sHeight+config.border, players[i].y-config.border);
 
-    if(players[i].xoffset < 0) players[i].xoffset = 0;
-    else if(players[i].xoffset > config.roomWidth-players[i].sWidth-1) players[i].xoffset = config.roomWidth-players[i].sWidth-1;
-    if(players[i].yoffset < 0) players[i].yoffset = 0;
-    else if(players[i].yoffset > config.roomHeight-players[i].sHeight-1) players[i].yoffset = config.roomHeight-players[i].sHeight-1;
-
+    players[i].xoffset = clamp(players[i].xoffset, 0, config.roomWidth-players[i].sWidth-1);
+    players[i].yoffset = clamp(players[i].yoffset, 0, config.roomHeight-players[i].sHeight-1);
 
     var top = (players[i].y-config.playerSize/2)/config.tileSize >> 0;
     var bottom = (players[i].y+config.playerSize/2)/config.tileSize >> 0;
     var left = (players[i].x-config.playerSize/2)/config.tileSize >> 0;
     var right = (players[i].x+config.playerSize/2)/config.tileSize >> 0;
 
-    if(room[top][left] === "1" || room[top][right] === "1" || room[bottom][left] === "1" || room[bottom][right] === "1"){
+    /*if(room[top][left] === "1" || room[top][right] === "1" || room[bottom][left] === "1" || room[bottom][right] === "1"){
       sockets[players[i].id].emit("dead");
       newLight(players[i].x, players[i].y);
 
       var index = findID(players[i].id);
       if(index > -1) players.splice(index, 1);
+    }*/
+
+    if((left === finish.x || right === finish.x) && (top === finish.y || bottom === finish.y)){
+      sockets[players[i].id].emit("finish");
+      players[i].x = 100;
+      players[i].y = 100;
     }
   }
 }
 
 function update(){
-  oldTime = time;
-  time = new Date().getTime();
-  for(var i=0;i<players.length;i++){
-    if(players[i] === "undefined") return;
+  players.forEach(function(p){
     var playersSection = [];
-    for(var j=0;j<players.length;j++){
-      if(j !== i &&
-         players[j].x+config.playerSize/2 > players[i].xoffset &&
-         players[j].x-config.playerSize/2 < players[i].xoffset+players[i].sWidth &&
-         players[j].y+config.playerSize/2 > players[i].yoffset &&
-         players[j].y-config.playerSize/2 < players[i].yoffset+players[i].sHeight) playersSection.push({x: players[j].x, y: players[j].y, hue: players[j].hue});
-    }
-    var player = {x: players[i].x, y: players[i].y, xoffset: players[i].xoffset, yoffset: players[i].yoffset};
-    sockets[players[i].id].emit("newPosition", player, playersSection);
+    players.forEach(function(pp){
+      if(p.id !== pp.id &&
+        pp.x+config.playerSize/2 > p.xoffset &&
+        pp.x-config.playerSize/2 < p.xoffset+p.sWidth &&
+        pp.y+config.playerSize/2 > p.yoffset &&
+        pp.y-config.playerSize/2 < p.yoffset+p.sHeight) playersSection.push({x: pp.x, y: pp.y, hue: pp.hue});
+    });
+    var player = {x: p.x, y: p.y, xoffset: p.xoffset, yoffset: p.yoffset};
+    sockets[p.id].emit("newPosition", player, playersSection);
 
-    if(players[i] === "undefined") return;
-    var topTile = players[i].yoffset/config.tileSize >> 0;
-    var bottomTile = (players[i].yoffset+players[i].sHeight)/config.tileSize >> 0;
-    var leftTile = players[i].xoffset/config.tileSize >> 0;
-    var rightTile = (players[i].xoffset+players[i].sWidth)/config.tileSize >> 0;
+    var topTile = p.yoffset/config.tileSize >> 0;
+    var bottomTile = (p.yoffset+p.sHeight)/config.tileSize >> 0;
+    var leftTile = p.xoffset/config.tileSize >> 0;
+    var rightTile = (p.xoffset+p.sWidth)/config.tileSize >> 0;
     var roomSection = "";
     for(var j=0;j<bottomTile-topTile+1;j++){
       roomSection += room[j+topTile].slice(leftTile, rightTile+1);
     }
-    sockets[players[i].id].emit("newRoom", encode(roomSection));
+    sockets[p.id].emit("newRoom", encodeRoom(roomSection));
 
     var lightsSection = [];
     for(var j=0;j<lights.length;j++){
-      if(lights[j].x+config.radius > players[i].xoffset &&
-         lights[j].x-config.radius < players[i].xoffset+players[i].sWidth &&
-         lights[j].y+config.radius > players[i].yoffset &&
-         lights[j].y-config.radius < players[i].yoffset+players[i].sHeight) lightsSection.push(lights[j]);
+      if(lights[j].x+config.radius > p.xoffset &&
+         lights[j].x-config.radius < p.xoffset+p.sWidth &&
+         lights[j].y+config.radius > p.yoffset &&
+         lights[j].y-config.radius < p.yoffset+p.sHeight) lightsSection.push(lights[j]);
     }
-    sockets[players[i].id].emit("newLights", lightsSection);
-  }
+    sockets[p.id].emit("newLights", lightsSection);
+  });
 }
 
 setInterval(movePlayers, 16);
 setInterval(update, 16);
-setInterval(function(){
-    console.log("FPS: " + Math.round(1000/(time-oldTime)));
-}, 500);
 
 var ipaddress = process.env.OPENSHIFT_NODEJS_IP || "127.0.0.1";
 var port = process.env.OPENSHIFT_NODEJS_PORT  || 8080;

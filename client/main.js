@@ -64,6 +64,21 @@ window.onload = function(){
   });
 };
 
+window.requestAnimFrame = (function(){
+  return  window.requestAnimationFrame       ||
+          window.webkitRequestAnimationFrame ||
+          window.mozRequestAnimationFrame    ||
+          function(callback){
+            window.setTimeout(callback, 1000 / 60);
+          };
+})();
+
+window.cancelAnimFrame = (function(handle) {
+    return  window.cancelAnimationFrame       ||
+            window.webkitCancelAnimationFrame ||
+            window.mozCancelAnimationFrame;
+})();
+
 function startGame(){
   if(!socket){
     socket = io();
@@ -89,9 +104,11 @@ function zeroPad(num, numZero){
 	return num;
 }
 
-function decode(packed, roomWidth){
+function decodeRoom(packed, roomWidth){
     var values = "";
+    var asdf = "";
     for(var i=0;i<packed.length;i++){
+        asdf += packed.charCodeAt(i)+" ";
         if(i === packed.length-1){
           var temp = i*16;
           values += zeroPad(packed.charCodeAt(i).toString(2), ((temp/roomWidth+1)>>0)*roomWidth-temp);
@@ -137,10 +154,14 @@ function setupSocket(){
   });
 
   socket.on("newRoom", function(newRoom){
-    var leftTile = players[i].xoffset/config.tileSize >> 0;
-    var rightTile = (players[i].xoffset+players[i].sWidth)/config.tileSize >> 0;
+    var leftTile = player.xoffset/config.tileSize >> 0;
+    var rightTile = (player.xoffset+player.sWidth)/config.tileSize >> 0;
     var roomWidth = rightTile-leftTile+1;
-    room = chunkString(decode(newRoom, roomWidth), roomWidth);
+    room = chunkString(decodeRoom(newRoom, roomWidth), roomWidth);
+  });
+
+  socket.on("finish", function(){
+    //do something
   });
 
   socket.on("pong", function(date){
@@ -151,29 +172,14 @@ function setupSocket(){
     dead = true;
     window.setTimeout(function(){
       dead = false;
-      if(animloopHandle){
+      /*if(animloopHandle){
           window.cancelAnimationFrame(animloopHandle);
           animloopHandle = undefined;
-      }
+      }*/
       startGame();
     }, 1000);
   });
 }
-
-window.requestAnimFrame = (function(){
-  return  window.requestAnimationFrame       ||
-          window.webkitRequestAnimationFrame ||
-          window.mozRequestAnimationFrame    ||
-          function(callback){
-            window.setTimeout(callback, 1000 / 60);
-          };
-})();
-
-window.cancelAnimFrame = (function(handle) {
-    return  window.cancelAnimationFrame       ||
-            window.webkitCancelAnimationFrame ||
-            window.mozCancelAnimationFrame;
-})();
 
 function animloop(){
   animloopHandle = requestAnimFrame(animloop);
