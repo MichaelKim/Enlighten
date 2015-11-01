@@ -30,10 +30,14 @@ var move = {
   down: false,
   left: false,
   right: false
-}
+};
 var dead = false;
 var animloopHandle;
 var oldtime = new Date().getTime(), time = new Date().getTime();
+
+var lightGradient = ctx.createRadialGradient(0,0,0,0,0,config.radius);
+lightGradient.addColorStop(0,"white");
+lightGradient.addColorStop(1,"transparent");
 
 window.onload = function(){
   startGame();
@@ -48,6 +52,7 @@ window.onload = function(){
     if(key === 83 || key === 40) move.down = true;
     if(key === 65 || key === 37) move.left = true;
     if(key === 68 || key === 39) move.right = true;
+    socket.emit("playerMove", moveEncode());
   });
 
   ct.addEventListener("keyup", function(event){
@@ -56,11 +61,7 @@ window.onload = function(){
     if(key === 83 || key === 40) move.down = false;
     if(key === 65 || key === 37) move.left = false;
     if(key === 68 || key === 39) move.right = false;
-  });
-
-  ct.addEventListener("mousemove", function(event){
-    document.getElementById("mousex").innerHTML = "Mouse X: "+event.pageX;
-    document.getElementById("mousey").innerHTML = "Mouse Y: "+event.pageY;
+    socket.emit("playerMove", moveEncode());
   });
 };
 
@@ -149,8 +150,6 @@ function setupSocket(){
     player.xoffset = newPlayer.xoffset;
     player.yoffset = newPlayer.yoffset;
     others = newOthers;
-    document.getElementById("playerx").innerHTML = "Player X: "+player.x;
-    document.getElementById("playery").innerHTML = "Player Y: "+player.y;
   });
 
   socket.on("newRoom", function(newRoom){
@@ -193,38 +192,51 @@ function gameLoop(){
   ctx.fillRect(0, 0, screenWidth, screenHeight);
   drawLights();
   drawOthers();
-  if(!dead){
-    drawPlayer();
-    socket.emit("playerMove", moveEncode());
-  }
+  if(!dead) drawPlayer();
 
   oldtime = time;
   time = new Date().getTime();
 }
 
 function drawRoom(){
+  var buffer = document.createElement("canvas");
+  buffer.width = screenWidth;
+  buffer.height = screenHeight;
+  var bfx = buffer.getContext("2d");
+
+
   var xshift = player.xoffset % config.tileSize;
   var yshift = player.yoffset % config.tileSize;
+  bfx.fillStyle = "#00ffff";
   for(var i=0;i<room.length;i++){
     for(var j=0;j<room[i].length;j++){
-      if(room[i][j] === "1") cbx.fillStyle = "#ff0000";
-      else cbx.fillStyle = "#00ff00";
-      cbx.fillRect(-xshift+j*config.tileSize, -yshift+i*config.tileSize, config.tileSize, config.tileSize);
+      //if(room[i][j] === "1") cbx.fillStyle = "#ff0000";
+      //else cbx.fillStyle = "#00ff00";
+      if(room[i][j] === "1") bfx.fillRect(-xshift+j*config.tileSize, -yshift+i*config.tileSize, config.tileSize, config.tileSize);
     }
   }
+
+  cbx.drawImage(buffer, 0, 0);
 }
 
 function drawLights(){
   ctx.globalCompositeOperation = "destination-out";
-  ctx.fillStyle = "rgba(0,0,0,0.2)";
-  ctx.fillRect(0, 0, screenWidth, screenHeight);
 
+  ctx.fillStyle = lightGradient;
   for(var i=0;i<lights.length;i++){
-    var grd = ctx.createRadialGradient(lights[i].x-player.xoffset,lights[i].y-player.yoffset,0,lights[i].x-player.xoffset,lights[i].y-player.yoffset,config.radius);
-    grd.addColorStop(0,"black");
-    grd.addColorStop(lights[i].fade,"rgba(255,255,255,0)");
-    ctx.fillStyle = grd;
-    ctx.fillRect(lights[i].x-config.radius-player.xoffset,lights[i].y-config.radius-player.yoffset,2*config.radius,2*config.radius);
+    if(lights[i].fade === 1.0){
+      ctx.translate(lights[i].x-player.xoffset, lights[i].y-player.yoffset);
+      ctx.fillRect(-config.radius, -config.radius, 2*config.radius, 2*config.radius);
+      ctx.translate(-lights[i].x+player.xoffset, -lights[i].y+player.yoffset);
+    }
+    else{
+      var grd = ctx.createRadialGradient(lights[i].x-player.xoffset,lights[i].y-player.yoffset,0,lights[i].x-player.xoffset,lights[i].y-player.yoffset,config.radius);
+      grd.addColorStop(0,"black");
+      grd.addColorStop(lights[i].fade,"transparent");
+      ctx.fillStyle = grd;
+      ctx.fillRect(lights[i].x-config.radius-player.xoffset,lights[i].y-config.radius-player.yoffset,2*config.radius,2*config.radius);
+      ctx.fillStyle = lightGradient;
+    }
   }
   ctx.globalCompositeOperation = "source-over";
 }

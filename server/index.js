@@ -17,7 +17,7 @@ var config = {
 var finish = {
   x: 48,
   y: 18
-}
+};
 var speed = 0.05;
 
 var sockets = {};
@@ -104,7 +104,7 @@ function findLight(x, y){
     if(lights[i].x === x && lights[i].y === y) return i;
   }
   return -1;
-};
+}
 
 function newLight(xx, yy){
   lights.push({x: xx, y: yy, fade: 1.0});
@@ -112,7 +112,7 @@ function newLight(xx, yy){
     var int = setInterval(function(){
       var index = findLight(xx, yy);
       if(index > -1){
-        lights[index].fade -= .02;
+        lights[index].fade -= 0.02;
         if(lights[index].fade <= 0){
           lights.splice(index, 1);
           clearInterval(int);
