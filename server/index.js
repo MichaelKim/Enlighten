@@ -43,7 +43,7 @@ io.on("connection", function(socket){
   socket.on("startClient", function(){
     var index = findID(currPlayer.id);
     if(index > -1) players.splice(index, 1);
-    socket.emit("startServer", currPlayer, players);
+    socket.emit("startServer", currPlayer, players, room);
   });
 
   socket.on("confirm", function(data){
@@ -122,13 +122,6 @@ function newLight(xx, yy){
   }, 60000);
 }
 
-function encodeRoom(values){
-  var size = values.length / 16 + 1 >> 0, offset = 0, packed = "";
-  for(var i=0;i<size;i++,offset+=16){
-    packed += String.fromCharCode(parseInt(values.substring(offset, offset + 16), 2));
-  }
-  return packed;
-}
 /*function find(array, element, property){
   for(var i=0;i<array.length;i++){
     if(array[i][property] === element) return i;
@@ -157,13 +150,13 @@ function movePlayers(){
     var left = (players[i].x-config.playerSize/2)/config.tileSize >> 0;
     var right = (players[i].x+config.playerSize/2)/config.tileSize >> 0;
 
-    /*if(room[top][left] === "1" || room[top][right] === "1" || room[bottom][left] === "1" || room[bottom][right] === "1"){
+    if(room[top][left] === "1" || room[top][right] === "1" || room[bottom][left] === "1" || room[bottom][right] === "1"){
       sockets[players[i].id].emit("dead");
       newLight(players[i].x, players[i].y);
 
       var index = findID(players[i].id);
       if(index > -1) players.splice(index, 1);
-    }*/
+    }
 
     if((left === finish.x || right === finish.x) && (top === finish.y || bottom === finish.y)){
       sockets[players[i].id].emit("finish");
@@ -185,16 +178,6 @@ function update(){
     });
     var player = {x: p.x, y: p.y, xoffset: p.xoffset, yoffset: p.yoffset};
     sockets[p.id].emit("newPosition", player, playersSection);
-
-    var topTile = p.yoffset/config.tileSize >> 0;
-    var bottomTile = (p.yoffset+p.sHeight)/config.tileSize >> 0;
-    var leftTile = p.xoffset/config.tileSize >> 0;
-    var rightTile = (p.xoffset+p.sWidth)/config.tileSize >> 0;
-    var roomSection = "";
-    for(var j=0;j<bottomTile-topTile+1;j++){
-      roomSection += room[j+topTile].slice(leftTile, rightTile+1);
-    }
-    sockets[p.id].emit("newRoom", encodeRoom(roomSection));
 
     var lightsSection = [];
     for(var j=0;j<lights.length;j++){

@@ -17,7 +17,11 @@ var config = {
 
 var socket;
 var lights = [];
-var room = [];
+
+var roomBuffer = document.createElement("canvas");
+var rbx = roomBuffer.getContext("2d");
+var roomDraw = true;
+
 var player = {
   x: 0,
   y: 0,
@@ -89,38 +93,6 @@ function startGame(){
   socket.emit("startClient");
 }
 
-function chunkString(str, len){
-  var size = str.length / len >> 0,
-      ret  = new Array(size),
-      offset = 0;
-
-  for(var i=0;i<size;++i,offset+=len){
-    ret[i] = str.substring(offset, offset + len);
-  }
-  return ret;
-}
-
-function zeroPad(num, numZero){
-	for(var i=num.length;i<numZero;i++) num = "0"+num;
-	return num;
-}
-
-function decodeRoom(packed, roomWidth){
-    var values = "";
-    var asdf = "";
-    for(var i=0;i<packed.length;i++){
-        asdf += packed.charCodeAt(i)+" ";
-        if(i === packed.length-1){
-          var temp = i*16;
-          values += zeroPad(packed.charCodeAt(i).toString(2), ((temp/roomWidth+1)>>0)*roomWidth-temp);
-        }
-        else{
-          values += zeroPad(packed.charCodeAt(i).toString(2), 16);
-        }
-    }
-    return values;
-}
-
 function moveEncode(){
   var result = 0;
   if(move.up) result += 1;
@@ -131,12 +103,22 @@ function moveEncode(){
 }
 
 function setupSocket(){
-  socket.on("startServer", function(newPlayer, otherPlayers){
+  socket.on("startServer", function(newPlayer, otherPlayers, room){
     player = newPlayer;
     player.sWidth = screenWidth;
     player.sHeight = screenHeight;
     others = otherPlayers;
 
+    roomBuffer.width = config.roomWidth;
+    roomBuffer.height = config.roomHeight;
+    for(var i=0;i<room.length;i++){
+      for(var j=0;j<room[i].length;j++){
+        if(room[i][j] === "1") rbx.fillStyle = "#ff0000";
+        else rbx.fillStyle = "#00ff00";
+        rbx.fillRect(j*config.tileSize, i*config.tileSize, config.tileSize, config.tileSize);
+      }
+    }
+    roomDraw = true;
     socket.emit("confirm", player);
   });
 
@@ -147,16 +129,10 @@ function setupSocket(){
   socket.on("newPosition", function(newPlayer, newOthers){
     player.x = newPlayer.x;
     player.y = newPlayer.y;
+    if(player.xoffset !== newPlayer.xoffset || player.yoffset !== newPlayer.yoffset) roomDraw = true;
     player.xoffset = newPlayer.xoffset;
     player.yoffset = newPlayer.yoffset;
     others = newOthers;
-  });
-
-  socket.on("newRoom", function(newRoom){
-    var leftTile = player.xoffset/config.tileSize >> 0;
-    var rightTile = (player.xoffset+player.sWidth)/config.tileSize >> 0;
-    var roomWidth = rightTile-leftTile+1;
-    room = chunkString(decodeRoom(newRoom, roomWidth), roomWidth);
   });
 
   socket.on("finish", function(){
@@ -186,7 +162,10 @@ function animloop(){
 }
 
 function gameLoop(){
-  drawRoom();
+  if(roomDraw){
+    drawRoom();
+    roomDraw = false;
+  }
 
   ctx.fillStyle = "#000000";
   ctx.fillRect(0, 0, screenWidth, screenHeight);
@@ -199,28 +178,14 @@ function gameLoop(){
 }
 
 function drawRoom(){
-  var buffer = document.createElement("canvas");
-  buffer.width = screenWidth;
-  buffer.height = screenHeight;
-  var bfx = buffer.getContext("2d");
-
-
-  var xshift = player.xoffset % config.tileSize;
-  var yshift = player.yoffset % config.tileSize;
-  bfx.fillStyle = "#00ffff";
-  for(var i=0;i<room.length;i++){
-    for(var j=0;j<room[i].length;j++){
-      //if(room[i][j] === "1") cbx.fillStyle = "#ff0000";
-      //else cbx.fillStyle = "#00ff00";
-      if(room[i][j] === "1") bfx.fillRect(-xshift+j*config.tileSize, -yshift+i*config.tileSize, config.tileSize, config.tileSize);
-    }
-  }
-
-  cbx.drawImage(buffer, 0, 0);
+  cbx.drawImage(roomBuffer, -player.xoffset, -player.yoffset);
+  //cbx.drawImage(roomBuffer, player.xoffset, player.yoffset, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight);
 }
 
 function drawLights(){
   ctx.globalCompositeOperation = "destination-out";
+  ctx.fillStyle = "rgba(0,0,0,0.2)";
+  ctx.fillRect(0, 0, screenWidth, screenHeight);
 
   ctx.fillStyle = lightGradient;
   for(var i=0;i<lights.length;i++){
