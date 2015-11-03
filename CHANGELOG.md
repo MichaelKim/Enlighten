@@ -1,7 +1,7 @@
 # Changelog
 
 ### v1.3.0
-- New website: [https://infinite-ocean-4921.herokuapp.com/](Heroku) (prone to change)
+- New website: [https://enlighten-game.herokuapp.com/](Heroku Deploy)
 - Lower ping, higher fps
 - Remove Room Creator temporarily
 
