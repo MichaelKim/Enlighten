@@ -1,7 +1,7 @@
 # Changelog
 
 ### v1.3.0
-- New website: [https://enlighten-game.herokuapp.com/](Heroku Deploy)
+- New website: [Heroku Deploy](https://enlighten-game.herokuapp.com)
 - Lower ping, higher fps
 - Remove Room Creator temporarily
 
