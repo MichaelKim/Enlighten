@@ -9,8 +9,8 @@ ct.focus();
 var config = {
   "tileSize": 50,
   "radius": 100,
-  "roomWidth": 2500,
-  "roomHeight": 1000,
+  "roomWidth": 0,
+  "roomHeight": 0,
   "border": 200,
   "playerSize": 24
 };
@@ -43,12 +43,16 @@ var lightGradient = ctx.createRadialGradient(0,0,0,0,0,config.radius);
 lightGradient.addColorStop(0,"white");
 lightGradient.addColorStop(1,"transparent");
 
+var debug = false;
+
 window.onload = function(){
   startGame();
 
-  ct.addEventListener("mousedown", function(event){
-    socket.emit("addLight", {x: event.pageX + player.xoffset, y: event.pageY + player.yoffset});
-  });
+  if(debug){
+    ct.addEventListener("mousedown", function(event){
+      socket.emit("addLight", {x: event.pageX + player.xoffset, y: event.pageY + player.yoffset});
+    });
+  }
 
   ct.addEventListener("keydown", function(event){
     var key = event.which || event.keyCode;
@@ -109,8 +113,8 @@ function setupSocket(){
     player.sHeight = screenHeight;
     others = otherPlayers;
 
-    roomBuffer.width = config.roomWidth;
-    roomBuffer.height = config.roomHeight;
+    roomBuffer.width = config.roomWidth = room[0].length*config.tileSize;
+    roomBuffer.height = config.roomHeight = room.length*config.tileSize;
     for(var i=0;i<room.length;i++){
       for(var j=0;j<room[i].length;j++){
         if(room[i][j] === "1") rbx.fillStyle = "#ff0000";
@@ -184,8 +188,10 @@ function drawRoom(){
 
 function drawLights(){
   ctx.globalCompositeOperation = "destination-out";
-  ctx.fillStyle = "rgba(0,0,0,0.2)";
-  ctx.fillRect(0, 0, screenWidth, screenHeight);
+  if(debug){
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(0, 0, screenWidth, screenHeight);
+  }
 
   ctx.fillStyle = lightGradient;
   for(var i=0;i<lights.length;i++){
@@ -222,6 +228,7 @@ function drawPlayer(){
 window.addEventListener('resize', function() {
   screenWidth = ct.width = cb.width = window.innerWidth;
   screenHeight = ct.height = cb.height = window.innerHeight;
+  roomDraw = true;
   socket.emit("resize", screenWidth, screenHeight);
 });
 

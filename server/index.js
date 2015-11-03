@@ -1,10 +1,14 @@
 var express = require("express");
 var app     = express();
-var http    = require("http").Server(app);
-var io      = require("socket.io")(http);
+var http    = require("http").createServer(app);
+var io      = require("socket.io").listen(http);
 var room    = require("./room.json");
 
 app.use(express.static(__dirname + '/../client'));
+var port = process.env.PORT  || 5000;
+http.listen(port, function(){
+  console.log("listening on:" + port);
+});
 
 var config = {
   "tileSize": 50,
@@ -119,7 +123,7 @@ function newLight(xx, yy){
         }
       }
     }, 20);
-  }, 60000);
+  }, 300000);
 }
 
 /*function find(array, element, property){
@@ -192,9 +196,3 @@ function update(){
 
 setInterval(movePlayers, 16);
 setInterval(update, 16);
-
-var ipaddress = process.env.OPENSHIFT_NODEJS_IP || "127.0.0.1";
-var port = process.env.OPENSHIFT_NODEJS_PORT  || 8080;
-http.listen(port, ipaddress, function(){
-  console.log("listening on " + ipaddress + ":" + port);
-});
