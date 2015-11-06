@@ -1,5 +1,9 @@
 # Changelog
 
+### v1.3.1
+- Enable gzip compression
+- socket.io CDN used
+
 ### v1.3.0
 - New website: [Heroku Deploy](https://enlighten-game.herokuapp.com)
 - Lower ping, higher fps
