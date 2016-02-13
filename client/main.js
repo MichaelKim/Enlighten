@@ -1,31 +1,35 @@
+//Top canvas: shadow that covers game
 var ct = document.getElementById("cantop");
 var ctx = ct.getContext("2d");
+//Bot canvas: visible portion of room
 var cb = document.getElementById("canbot");
 var cbx = cb.getContext("2d");
-var screenWidth = ct.width = cb.width = window.innerWidth;
-var screenHeight = ct.height = cb.height = window.innerHeight;
+ct.width = cb.width = window.innerWidth;
+ct.height = cb.height = window.innerHeight;
 ct.focus();
 
 var config = {
-  "tileSize": 50,
-  "radius": 100,
-  "roomWidth": 0,
-  "roomHeight": 0,
-  "border": 200,
-  "playerSize": 24
+  "tileSize": 50,  //side length of tile (tiles are square)
+  "radius": 100,   //radius of light
+  "border": 200,   //border where scrolling begins
+  "playerSize": 24 //side length of player (player is square)
 };
 
-var socket;
-var lights = [];
+var socket; //socket connection with server
+var lights = []; //lights
 
-var roomBuffer = document.createElement("canvas");
+var roomBuffer = document.createElement("canvas"); //canvas of entire room
 var rbx = roomBuffer.getContext("2d");
-var roomDraw = true;
+var roomDraw = true; //redraw room (due to changing view)
 
+//var lightBuffer = document.createElement("canvas");
+//var lbx = lightBuffer.getContext("2d");
+
+//player object
 var player = {
-  x: 0,
+  x: 0,        //position coords
   y: 0,
-  xoffset: 0,
+  xoffset: 0,  //offset for view (top-left coords)
   yoffset: 0
 };
 var others = [];
@@ -35,18 +39,21 @@ var move = {
   left: false,
   right: false
 };
-var dead = false;
-var animloopHandle;
-var oldtime = new Date().getTime(), time = new Date().getTime();
 
-var lightGradient = ctx.createRadialGradient(0,0,0,0,0,config.radius);
+var animloopHandle;
+var oldtime = new Date().getTime(), time = new Date().getTime(); //for fps
+
+var lightGradient = ctx.createRadialGradient(0,0,0,0,0,config.radius); //light gradient
 lightGradient.addColorStop(0,"white");
 lightGradient.addColorStop(1,"transparent");
 
 var debug = false;
 
 window.onload = function(){
-  startGame();
+  var startBtn = document.getElementById("startbtn");
+  startBtn.onclick = function(){
+    startGame();
+  };
 
   if(debug){
     ct.addEventListener("mousedown", function(event){
@@ -54,7 +61,7 @@ window.onload = function(){
     });
   }
 
-  ct.addEventListener("keydown", function(event){
+  ct.addEventListener("keydown", function(event){ //press key down
     var key = event.which || event.keyCode;
     if(key === 87 || key == 38) move.up = true;
     if(key === 83 || key === 40) move.down = true;
@@ -63,7 +70,7 @@ window.onload = function(){
     socket.emit("playerMove", moveEncode());
   });
 
-  ct.addEventListener("keyup", function(event){
+  ct.addEventListener("keyup", function(event){ //depress key
     var key = event.which || event.keyCode;
     if(key === 87 || key == 38) move.up = false;
     if(key === 83 || key === 40) move.down = false;
@@ -97,7 +104,7 @@ function startGame(){
   socket.emit("startClient");
 }
 
-function moveEncode(){
+function moveEncode(){ //convert move into 4-bit binary
   var result = 0;
   if(move.up) result += 1;
   if(move.down) result += 2;
@@ -109,20 +116,16 @@ function moveEncode(){
 function setupSocket(){
   socket.on("startServer", function(newPlayer, otherPlayers, room){
     player = newPlayer;
-    player.sWidth = screenWidth;
-    player.sHeight = screenHeight;
+    document.getElementById("room").innerHTML = "Room: " + player.room;
+    player.sWidth = window.innerWidth;
+    player.sHeight = window.innerHeight;
     others = otherPlayers;
 
-    roomBuffer.width = config.roomWidth = room[0].length*config.tileSize;
-    roomBuffer.height = config.roomHeight = room.length*config.tileSize;
-    for(var i=0;i<room.length;i++){
-      for(var j=0;j<room[i].length;j++){
-        if(room[i][j] === "1") rbx.fillStyle = "#ff0000";
-        else rbx.fillStyle = "#00ff00";
-        rbx.fillRect(j*config.tileSize, i*config.tileSize, config.tileSize, config.tileSize);
-      }
-    }
-    roomDraw = true;
+    updateRoom(room);
+
+    document.getElementById("startbtn").style.display = "none";
+    ct.focus();
+
     socket.emit("confirm", player);
   });
 
@@ -130,34 +133,56 @@ function setupSocket(){
     lights = newLights;
   });
 
-  socket.on("newPosition", function(newPlayer, newOthers){
+  socket.on("newPosition", function(newPlayer, newOthers, numPlayers){
     player.x = newPlayer.x;
     player.y = newPlayer.y;
     if(player.xoffset !== newPlayer.xoffset || player.yoffset !== newPlayer.yoffset) roomDraw = true;
     player.xoffset = newPlayer.xoffset;
     player.yoffset = newPlayer.yoffset;
     others = newOthers;
+
+    document.getElementById("numPlayer").innerHTML = "Players: " + numPlayers;
   });
 
-  socket.on("finish", function(){
-    //do something
+  socket.on("newRoom", function(newPlayer, newRoom){
+    player = newPlayer;
+    document.getElementById("room").innerHTML = "Room: " + player.room;
+    updateRoom(newRoom);
   });
+
+  setInterval(function(){
+    document.getElementById("fps").innerHTML = "FPS: "+Math.round(1000/(time-oldtime));
+    socket.emit("ping", new Date().getTime());
+  }, 1000);
 
   socket.on("pong", function(date){
     document.getElementById("ping").innerHTML = "Ping: "+ (new Date().getTime() - date);
   });
 
-  socket.on("dead", function(){
-    dead = true;
+  socket.on("dead", function(newPlayer){
+    player = newPlayer;
     window.setTimeout(function(){
-      dead = false;
       /*if(animloopHandle){
           window.cancelAnimationFrame(animloopHandle);
           animloopHandle = undefined;
       }*/
-      startGame();
+      //startGame();
+      socket.emit("respawn");
     }, 1000);
   });
+}
+
+function updateRoom(room){
+  roomBuffer.width = room[0].length*config.tileSize;
+  roomBuffer.height = room.length*config.tileSize;
+  for(var i=0;i<room.length;i++){
+    for(var j=0;j<room[i].length;j++){
+      if(room[i][j] === "1") rbx.fillStyle = "#ff0000";
+      else rbx.fillStyle = "#00ff00";
+      rbx.fillRect(j*config.tileSize, i*config.tileSize, config.tileSize, config.tileSize);
+    }
+  }
+  roomDraw = true;
 }
 
 function animloop(){
@@ -172,10 +197,10 @@ function gameLoop(){
   }
 
   ctx.fillStyle = "#000000";
-  ctx.fillRect(0, 0, screenWidth, screenHeight);
+  ctx.fillRect(0, 0, player.sWidth, player.sHeight);
   drawLights();
   drawOthers();
-  if(!dead) drawPlayer();
+  if(!player.dead) drawPlayer();
 
   oldtime = time;
   time = new Date().getTime();
@@ -183,14 +208,14 @@ function gameLoop(){
 
 function drawRoom(){
   cbx.drawImage(roomBuffer, -player.xoffset, -player.yoffset);
-  //cbx.drawImage(roomBuffer, player.xoffset, player.yoffset, screenWidth, screenHeight, 0, 0, screenWidth, screenHeight);
+  //cbx.drawImage(roomBuffer, player.xoffset, player.yoffset, player.sWidth, player.sHeight, 0, 0, player.sWidth, player.sHeight);
 }
 
 function drawLights(){
   ctx.globalCompositeOperation = "destination-out";
   if(debug){
     ctx.fillStyle = "rgba(0,0,0,0.2)";
-    ctx.fillRect(0, 0, screenWidth, screenHeight);
+    ctx.fillRect(0, 0, player.sWidth, player.sHeight);
   }
 
   ctx.fillStyle = lightGradient;
@@ -226,13 +251,8 @@ function drawPlayer(){
 }
 
 window.addEventListener('resize', function() {
-  screenWidth = ct.width = cb.width = window.innerWidth;
-  screenHeight = ct.height = cb.height = window.innerHeight;
+  player.sWidth = ct.width = cb.width = window.innerWidth;
+  player.sHeight = ct.height = cb.height = window.innerHeight;
   roomDraw = true;
-  socket.emit("resize", screenWidth, screenHeight);
+  socket.emit("resize", player.sWidth, player.sHeight);
 });
-
-setInterval(function(){
-  document.getElementById("fps").innerHTML = "FPS: "+Math.round(1000/(time-oldtime));
-  socket.emit("ping", new Date().getTime());
-}, 1000);

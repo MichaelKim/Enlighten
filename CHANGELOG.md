@@ -1,18 +1,28 @@
 # Changelog
 
+### v1.4
+- Multiple levels added
+  - Respawn logic updated
+  - Each room has
+    - Array of lights
+    - Only shows players in it
+    - Start / finish positions
+- Basic start button added
+- Displays number of players online
+
 ### v1.3.1
 - Enable gzip compression
 - socket.io CDN used
 
 ### v1.3.0
 - New website: [Heroku Deploy](https://enlighten-game.herokuapp.com)
-- Lower ping, higher fps
+  - Lower ping, higher fps
 - Remove Room Creator temporarily
 
 ### v1.2.0
 - Completely remove room sending
-- Room only sent when client connects to server
-- Room drawn once to buffer, buffer drawn only when view offset is changed
+  - Room only sent when client connects to server
+  - Room drawn once to buffer, buffer drawn only when view offset is changed
 
 ### v1.1.1
 - Remove Mouse/Player positions

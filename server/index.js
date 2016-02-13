@@ -3,7 +3,7 @@ var app     = express();
 var comp    = require("compression");
 var http    = require("http").createServer(app);
 var io      = require("socket.io").listen(http);
-var room    = require("./room.json");
+var rooms   = require("./room.json");
 
 app.use(comp());
 app.use(express.static(__dirname + '/../client'));
@@ -15,26 +15,21 @@ http.listen(port, function(){
 var config = {
   "tileSize": 50,
   "radius": 100,
-  "roomWidth": 2500,
-  "roomHeight": 1000,
   "border": 200,
   "playerSize": 24
-};
-var finish = {
-  x: 48,
-  y: 18
 };
 var speed = 0.05;
 
 var sockets = {};
 var players = [];
 var lights = [];
+for(var i=0;i<rooms.length;i++) lights.push([]);
 
 io.on("connection", function(socket){
   var currPlayer = {
     id: socket.id,
-    x: 100,
-    y: 100,
+    x: rooms[0].startx * config.tileSize,
+    y: rooms[0].starty * config.tileSize,
     xoffset: 0,
     yoffset: 0,
     hue: Math.round(Math.random() * 360),
@@ -43,19 +38,23 @@ io.on("connection", function(socket){
       down: false,
       left: false,
       right: false,
-    }
+    },
+    room: 0,
+    roomWidth: rooms[0].grid[0].length * config.tileSize,
+    roomHeight: rooms[0].grid.length * config.tileSize,
+    dead: false
   };
 
   socket.on("startClient", function(){
     var index = findID(currPlayer.id);
     if(index > -1) players.splice(index, 1);
-    socket.emit("startServer", currPlayer, players, room);
+    socket.emit("startServer", currPlayer, players, rooms[0].grid);
   });
 
   socket.on("confirm", function(data){
     currPlayer = data;
-    currPlayer.x = 100;
-    currPlayer.y = 100;
+    currPlayer.x = rooms[currPlayer.room].startx * config.tileSize;
+    currPlayer.y = rooms[currPlayer.room].starty * config.tileSize;
     currPlayer.move = {
       up: false,
       down: false,
@@ -67,8 +66,21 @@ io.on("connection", function(socket){
     console.log("New Player: " + currPlayer.id);
   });
 
-  socket.on("addLight", function(data){
-    newLight(data.x, data.y);
+  socket.on("respawn", function(){
+    currPlayer.x = rooms[currPlayer.room].startx * config.tileSize;
+    currPlayer.y = rooms[currPlayer.room].starty * config.tileSize;
+    currPlayer.move = {
+      up: false,
+      down: false,
+      left: false,
+      right: false
+    };
+    currPlayer.dead = false;
+    socket.emit("startServer", currPlayer, players, rooms[currPlayer.room].grid);
+  });
+
+  socket.on("addLight", function(data){ //only used in debug
+    newLight(data.x, data.y, currPlayer.room);
   });
 
   socket.on("playerMove", function(data){
@@ -88,6 +100,7 @@ io.on("connection", function(socket){
   });
 
   socket.on('disconnect', function(){
+    //sockets[currPlayer.id] = undefined;
     var index = findID(currPlayer.id);
     if(index > -1) players.splice(index, 1);
     console.log("Player dc: " + currPlayer.id);
@@ -105,22 +118,22 @@ function findID(id){
   return -1;
 }
 
-function findLight(x, y){
-  for(var i=0;i<lights.length;i++){
-    if(lights[i].x === x && lights[i].y === y) return i;
+function findLight(x, y, room){
+  for(var i=0;i<lights[room].length;i++){
+    if(lights[room][i].x === x && lights[room][i].y === y) return i;
   }
   return -1;
 }
 
-function newLight(xx, yy){
-  lights.push({x: xx, y: yy, fade: 1.0});
+function newLight(xx, yy, room){
+  lights[room].push({x: xx, y: yy, fade: 1.0});
   setTimeout(function(){
     var int = setInterval(function(){
-      var index = findLight(xx, yy);
+      var index = findLight(xx, yy, room);
       if(index > -1){
-        lights[index].fade -= 0.02;
-        if(lights[index].fade <= 0){
-          lights.splice(index, 1);
+        lights[room][index].fade -= 0.02;
+        if(lights[room][index].fade <= 0){
+          lights[room].splice(index, 1);
           clearInterval(int);
         }
       }
@@ -137,60 +150,71 @@ function newLight(xx, yy){
 
 function movePlayers(){
   for(var i=0;i<players.length;i++){
+    if(players[i].dead) continue;
+
+    var pRoom = players[i].room;
     if(players[i].move.up) players[i].y -= 5;
     if(players[i].move.down) players[i].y += 5;
     if(players[i].move.left) players[i].x -= 5;
     if(players[i].move.right) players[i].x += 5;
 
-    players[i].x = clamp(players[i].x, config.playerSize/2, config.roomWidth-config.playerSize/2-1);
-    players[i].y = clamp(players[i].y, config.playerSize/2, config.roomHeight-config.playerSize/2-1);
+    players[i].x = clamp(players[i].x, config.playerSize/2, players[i].roomWidth-config.playerSize/2-1);
+    players[i].y = clamp(players[i].y, config.playerSize/2, players[i].roomHeight-config.playerSize/2-1);
 
     players[i].xoffset = clamp(players[i].xoffset, players[i].x-players[i].sWidth+config.border, players[i].x-config.border);
     players[i].yoffset = clamp(players[i].yoffset, players[i].y-players[i].sHeight+config.border, players[i].y-config.border);
 
-    players[i].xoffset = clamp(players[i].xoffset, 0, config.roomWidth-players[i].sWidth-1);
-    players[i].yoffset = clamp(players[i].yoffset, 0, config.roomHeight-players[i].sHeight-1);
+    players[i].xoffset = clamp(players[i].xoffset, 0, players[i].roomWidth-players[i].sWidth-1);
+    players[i].yoffset = clamp(players[i].yoffset, 0, players[i].roomHeight-players[i].sHeight-1);
 
     var top = (players[i].y-config.playerSize/2)/config.tileSize >> 0;
     var bottom = (players[i].y+config.playerSize/2)/config.tileSize >> 0;
     var left = (players[i].x-config.playerSize/2)/config.tileSize >> 0;
     var right = (players[i].x+config.playerSize/2)/config.tileSize >> 0;
 
-    if(room[top][left] === "1" || room[top][right] === "1" || room[bottom][left] === "1" || room[bottom][right] === "1"){
-      sockets[players[i].id].emit("dead");
-      newLight(players[i].x, players[i].y);
+    if(rooms[pRoom].grid[top][left] === "1" || rooms[pRoom].grid[top][right] === "1" || rooms[pRoom].grid[bottom][left] === "1" || rooms[pRoom].grid[bottom][right] === "1"){
+      players[i].dead = true;
+      sockets[players[i].id].emit("dead", players[i]);
+      newLight(players[i].x, players[i].y, pRoom);
 
       var index = findID(players[i].id);
       if(index > -1) players.splice(index, 1);
     }
 
-    if((left === finish.x || right === finish.x) && (top === finish.y || bottom === finish.y)){
-      sockets[players[i].id].emit("finish");
-      players[i].x = 100;
-      players[i].y = 100;
+    if((left === rooms[pRoom].finishx || right === rooms[pRoom].finishx) && (top === rooms[pRoom].finishy || bottom === rooms[pRoom].finishy)){
+      players[i].room++;
+      if(players[i].room >= rooms.length) players[i].room = rooms.length - 1;
+      players[i].x = rooms[players[i].room].startx * config.tileSize;
+      players[i].y = rooms[players[i].room].starty * config.tileSize;
+      players[i].roomWidth = rooms[players[i].room].grid[0].length * config.tileSize;
+      players[i].roomHeight = rooms[players[i].room].grid.length * config.tileSize;
+      sockets[players[i].id].emit("newRoom", players[i], rooms[players[i].room].grid);
     }
   }
 }
 
 function update(){
   players.forEach(function(p){
+    if(p.dead) return;
+
     var playersSection = [];
     players.forEach(function(pp){
       if(p.id !== pp.id &&
         pp.x+config.playerSize/2 > p.xoffset &&
         pp.x-config.playerSize/2 < p.xoffset+p.sWidth &&
         pp.y+config.playerSize/2 > p.yoffset &&
-        pp.y-config.playerSize/2 < p.yoffset+p.sHeight) playersSection.push({x: pp.x, y: pp.y, hue: pp.hue});
+        pp.y-config.playerSize/2 < p.yoffset+p.sHeight &&
+        p.room === pp.room) playersSection.push({x: pp.x, y: pp.y, hue: pp.hue});
     });
     var player = {x: p.x, y: p.y, xoffset: p.xoffset, yoffset: p.yoffset};
-    sockets[p.id].emit("newPosition", player, playersSection);
+    sockets[p.id].emit("newPosition", player, playersSection, players.length);
 
     var lightsSection = [];
-    for(var j=0;j<lights.length;j++){
-      if(lights[j].x+config.radius > p.xoffset &&
-         lights[j].x-config.radius < p.xoffset+p.sWidth &&
-         lights[j].y+config.radius > p.yoffset &&
-         lights[j].y-config.radius < p.yoffset+p.sHeight) lightsSection.push(lights[j]);
+    for(var j=0;j<lights[p.room].length;j++){
+      if(lights[p.room][j].x+config.radius > p.xoffset &&
+         lights[p.room][j].x-config.radius < p.xoffset+p.sWidth &&
+         lights[p.room][j].y+config.radius > p.yoffset &&
+         lights[p.room][j].y-config.radius < p.yoffset+p.sHeight) lightsSection.push(lights[p.room][j]);
     }
     sockets[p.id].emit("newLights", lightsSection);
   });

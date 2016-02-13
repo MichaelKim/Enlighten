@@ -11,29 +11,42 @@
       padding: 0;
     }
     canvas{
-      /*border: 1px solid;*/
       position: absolute !important;
       margin: 0;
       padding: 0;
       width: 100%;
       height: 100%;
-      /*top: 0;
-      left: 0;*/
     }
-    #mousepos{
+    #display{
       position: absolute;
       font-size: 18px;
-      background: rgba(0, 0, 0, 1);
+      background: rgba(0, 0, 0, 0.5);
       color: #fff;
       z-index: 10;
+    }
+    #menu{
+      position: absolute;
+      color: white;
+      text-align: center;
+      width: 100%;
+      z-index: 10;
+    }
+    #startbtn{
+      margin: 0 auto;
+      margin-top: 100px;
     }
   </style>
   <!-- <link rel="stylesheet" href="css/main.css"/> -->
 </head>
 <body>
-  <div id="mousepos">
+  <div id="display">
     <div id="ping">Ping: 100</div>
     <div id="fps">FPS: 60</div>
+    <div id="room">Room: N/A</div>
+    <div id="numPlayer">Players: 0</div>
+  </div>
+  <div id="menu">
+    <button id="startbtn">Start</button>
   </div>
   <div id="game">
     <canvas id="canbot"></canvas>
