@@ -1,6 +1,10 @@
 # Changelog
 
-### v1.4
+### v2.0.1
+- Add two new levels
+- Finish position is now rectangular
+
+### v2.0.0
 - Multiple levels added
   - Respawn logic updated
   - Each room has

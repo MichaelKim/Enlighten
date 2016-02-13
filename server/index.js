@@ -181,7 +181,7 @@ function movePlayers(){
       if(index > -1) players.splice(index, 1);
     }
 
-    if((left === rooms[pRoom].finishx || right === rooms[pRoom].finishx) && (top === rooms[pRoom].finishy || bottom === rooms[pRoom].finishy)){
+    if(left >= rooms[pRoom].finishl && right <= rooms[pRoom].finishr && top >= rooms[pRoom].finishu && bottom <= rooms[pRoom].finishd){
       players[i].room++;
       if(players[i].room >= rooms.length) players[i].room = rooms.length - 1;
       players[i].x = rooms[players[i].room].startx * config.tileSize;
