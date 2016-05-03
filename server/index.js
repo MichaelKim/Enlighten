@@ -210,8 +210,6 @@ function movePlayers(){
     var left = (players[i].x-config.playerSize/2)/config.tileSize >> 0;
     var right = (players[i].x+config.playerSize/2)/config.tileSize >> 0;
 
-    console.log(left + " " + top);
-
     if(rooms[pRoom].grid[top][left] === "1" || rooms[pRoom].grid[top][right] === "1" || rooms[pRoom].grid[bottom][left] === "1" || rooms[pRoom].grid[bottom][right] === "1"){
       players[i].dead = true;
       sockets[players[i].id].emit("dead", players[i]);
