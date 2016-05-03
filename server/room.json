@@ -27,7 +27,11 @@
     "finishl": 27,
     "finishu": 12,
     "finishr": 32,
-    "finishd": 14
+    "finishd": 14,
+    "campfire": [
+      {"x": 3, "y": 6},
+      {"x": 30, "y": 6}
+    ]
   },
   {
     "grid": [
@@ -57,7 +61,11 @@
     "finishl": 39,
     "finishu": 10,
     "finishr": 42,
-    "finishd": 13
+    "finishd": 13,
+    "campfire": [
+      {"x": 12, "y": 16},
+      {"x": 40, "y": 5}
+    ]
   },
   {
     "grid": [
@@ -87,6 +95,13 @@
     "finishl": 46,
     "finishu": 17,
     "finishr": 48,
-    "finishd": 18
+    "finishd": 18,
+    "campfire": [
+      {"x": 4, "y": 15},
+      {"x": 32, "y": 13},
+      {"x": 47, "y": 2},
+      {"x": 24, "y": 11},
+      {"x": 42, "y": 15}
+    ]
   }
 ]

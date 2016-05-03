@@ -1,5 +1,11 @@
 # Changelog
 
+### v2.1.0
+- Smooth scrolling
+- Added player lights ("torches")
+- Added permanent light sources ("campfires")
+- Added basic instructions page
+
 ### v2.0.1
 - Add two new levels
 - Finish position is now rectangular

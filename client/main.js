@@ -11,26 +11,26 @@ ct.focus();
 var config = {
   "tileSize": 50,  //side length of tile (tiles are square)
   "radius": 100,   //radius of light
-  "border": 200,   //border where scrolling begins
+  "pradius": 200, //radius of player light
+  "border": 300,   //border where scrolling begins
   "playerSize": 24 //side length of player (player is square)
 };
 
 var socket; //socket connection with server
 var lights = []; //lights
+var campfires = []; //campfires
 
 var roomBuffer = document.createElement("canvas"); //canvas of entire room
 var rbx = roomBuffer.getContext("2d");
 var roomDraw = true; //redraw room (due to changing view)
-
-//var lightBuffer = document.createElement("canvas");
-//var lbx = lightBuffer.getContext("2d");
 
 //player object
 var player = {
   x: 0,        //position coords
   y: 0,
   xoffset: 0,  //offset for view (top-left coords)
-  yoffset: 0
+  yoffset: 0,
+  light: 1.0
 };
 var others = [];
 var move = {
@@ -104,7 +104,7 @@ function startGame(){
   socket.emit("startClient");
 }
 
-function moveEncode(){ //convert move into 4-bit binary
+function moveEncode(){ //enocde move into 4-bit
   var result = 0;
   if(move.up) result += 1;
   if(move.down) result += 2;
@@ -114,7 +114,7 @@ function moveEncode(){ //convert move into 4-bit binary
 }
 
 function setupSocket(){
-  socket.on("startServer", function(newPlayer, otherPlayers, room){
+  socket.on("startServer", function(newPlayer, otherPlayers, room, newCampfires){
     player = newPlayer;
     document.getElementById("room").innerHTML = "Room: " + player.room;
     player.sWidth = window.innerWidth;
@@ -123,7 +123,9 @@ function setupSocket(){
 
     updateRoom(room);
 
-    document.getElementById("startbtn").style.display = "none";
+    campfires = newCampfires;
+
+    document.getElementById("menu").style.display = "none";
     ct.focus();
 
     socket.emit("confirm", player);
@@ -136,6 +138,7 @@ function setupSocket(){
   socket.on("newPosition", function(newPlayer, newOthers, numPlayers){
     player.x = newPlayer.x;
     player.y = newPlayer.y;
+    player.light = newPlayer.light;
     if(player.xoffset !== newPlayer.xoffset || player.yoffset !== newPlayer.yoffset) roomDraw = true;
     player.xoffset = newPlayer.xoffset;
     player.yoffset = newPlayer.yoffset;
@@ -144,10 +147,11 @@ function setupSocket(){
     document.getElementById("numPlayer").innerHTML = "Players: " + numPlayers;
   });
 
-  socket.on("newRoom", function(newPlayer, newRoom){
+  socket.on("newRoom", function(newPlayer, newRoom, newCampfires){
     player = newPlayer;
     document.getElementById("room").innerHTML = "Room: " + player.room;
     updateRoom(newRoom);
+    campfires = newCampfires;
   });
 
   setInterval(function(){
@@ -213,19 +217,19 @@ function drawRoom(){
 
 function drawLights(){
   ctx.globalCompositeOperation = "destination-out";
-  if(debug){
-    ctx.fillStyle = "rgba(0,0,0,0.2)";
+  if(debug){ //make maze visible
+    ctx.fillStyle = "rgba(0,0,0,1)";
     ctx.fillRect(0, 0, player.sWidth, player.sHeight);
   }
 
   ctx.fillStyle = lightGradient;
   for(var i=0;i<lights.length;i++){
-    if(lights[i].fade === 1.0){
+    if(lights[i].fade === 1.0){ //full sized light
       ctx.translate(lights[i].x-player.xoffset, lights[i].y-player.yoffset);
       ctx.fillRect(-config.radius, -config.radius, 2*config.radius, 2*config.radius);
       ctx.translate(-lights[i].x+player.xoffset, -lights[i].y+player.yoffset);
     }
-    else{
+    else{ //waning light
       var grd = ctx.createRadialGradient(lights[i].x-player.xoffset,lights[i].y-player.yoffset,0,lights[i].x-player.xoffset,lights[i].y-player.yoffset,config.radius);
       grd.addColorStop(0,"black");
       grd.addColorStop(lights[i].fade,"transparent");
@@ -234,7 +238,29 @@ function drawLights(){
       ctx.fillStyle = lightGradient;
     }
   }
+
+  for(var j=0;j<campfires.length;j++){
+    drawSingleLight(campfires[j].x * config.tileSize - player.xoffset, campfires[j].y * config.tileSize - player.yoffset, config.pradius, 1);
+  }
+
+  //draw player lights
+  drawSingleLight(player.x - player.xoffset, player.y - player.yoffset, config.pradius, player.light);
+
+  //draw enemy lights
+  for(var k=0;k<others.length;k++){
+    drawSingleLight(others[k].x - player.xoffset, others[k].y - player.yoffset, config.pradius, others[k].light);
+  }
+
   ctx.globalCompositeOperation = "source-over";
+}
+
+function drawSingleLight(x, y, radius, dim){
+  var lightStyle = ctx.createRadialGradient(x, y, 0, x, y, radius);
+  lightStyle.addColorStop(0, "black");
+  lightStyle.addColorStop(dim, "transparent");
+  ctx.fillStyle = lightStyle;
+  ctx.fillRect(x - radius, y - radius, 2 * radius, 2 * radius);
+  ctx.fillStyle = lightGradient;
 }
 
 function drawOthers(){

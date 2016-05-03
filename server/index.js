@@ -15,15 +15,24 @@ http.listen(port, function(){
 var config = {
   "tileSize": 50,
   "radius": 100,
-  "border": 200,
+  "border": 300,
   "playerSize": 24
 };
-var speed = 0.05;
+var speed = 0.2;
+var lightLength = 5*60*1000; //5 minutes
+var plightDecay = 0.0005;
 
 var sockets = {};
 var players = [];
 var lights = [];
-for(var i=0;i<rooms.length;i++) lights.push([]);
+var campfires = [];
+for(var i=0;i<rooms.length;i++){
+  lights.push([]);
+  campfires.push([]);
+  for(var j=0;j<rooms[i].campfire.length;j++){
+    campfires[i].push(rooms[i].campfire[j]);
+  }
+}
 
 io.on("connection", function(socket){
   var currPlayer = {
@@ -33,6 +42,7 @@ io.on("connection", function(socket){
     xoffset: 0,
     yoffset: 0,
     hue: Math.round(Math.random() * 360),
+    light: 1.0,
     move:{
       up: false,
       down: false,
@@ -48,7 +58,7 @@ io.on("connection", function(socket){
   socket.on("startClient", function(){
     var index = findID(currPlayer.id);
     if(index > -1) players.splice(index, 1);
-    socket.emit("startServer", currPlayer, players, rooms[0].grid);
+    socket.emit("startServer", currPlayer, players, rooms[0].grid, campfires[0]);
   });
 
   socket.on("confirm", function(data){
@@ -76,7 +86,7 @@ io.on("connection", function(socket){
       right: false
     };
     currPlayer.dead = false;
-    socket.emit("startServer", currPlayer, players, rooms[currPlayer.room].grid);
+    socket.emit("startServer", currPlayer, players, rooms[currPlayer.room].grid, campfires[currPlayer.room]);
   });
 
   socket.on("addLight", function(data){ //only used in debug
@@ -118,18 +128,19 @@ function findID(id){
   return -1;
 }
 
-function findLight(x, y, room){
+function findLight(id, room){
   for(var i=0;i<lights[room].length;i++){
-    if(lights[room][i].x === x && lights[room][i].y === y) return i;
+    if(id === lights[room].id) return i;
   }
   return -1;
 }
 
 function newLight(xx, yy, room){
-  lights[room].push({x: xx, y: yy, fade: 1.0});
+  var newid = (xx + yy) * (xx + yy + 1) / 2 + yy;
+  lights[room].push({x: xx, y: yy, id: newid, fade: 1.0});
   setTimeout(function(){
     var int = setInterval(function(){
-      var index = findLight(xx, yy, room);
+      var index = findLight(newid, room);
       if(index > -1){
         lights[room][index].fade -= 0.02;
         if(lights[room][index].fade <= 0){
@@ -138,7 +149,7 @@ function newLight(xx, yy, room){
         }
       }
     }, 20);
-  }, 300000);
+  }, lightLength);
 }
 
 /*function find(array, element, property){
@@ -148,10 +159,26 @@ function newLight(xx, yy, room){
   return -1;
 }*/
 
+function loadNextLevel(player){
+  player.room++;
+  if(player.room >= rooms.length) player.room = rooms.length - 1;
+  player.x = rooms[player.room].startx * config.tileSize;
+  player.y = rooms[player.room].starty * config.tileSize;
+  player.roomWidth = rooms[player.room].grid[0].length * config.tileSize;
+  player.roomHeight = rooms[player.room].grid.length * config.tileSize;
+  player.light = 1.0;
+  sockets[player.id].emit("newRoom", player, rooms[player.room].grid, campfires[player.room]);
+}
+
 function movePlayers(){
   for(var i=0;i<players.length;i++){
     if(players[i].dead) continue;
 
+    //decay player light
+    if(players[i].light > 0) players[i].light -= plightDecay;
+    if(players[i].light < 0) players[i].light = 0;
+
+    //move player
     var pRoom = players[i].room;
     if(players[i].move.up) players[i].y -= 5;
     if(players[i].move.down) players[i].y += 5;
@@ -161,8 +188,19 @@ function movePlayers(){
     players[i].x = clamp(players[i].x, config.playerSize/2, players[i].roomWidth-config.playerSize/2-1);
     players[i].y = clamp(players[i].y, config.playerSize/2, players[i].roomHeight-config.playerSize/2-1);
 
-    players[i].xoffset = clamp(players[i].xoffset, players[i].x-players[i].sWidth+config.border, players[i].x-config.border);
-    players[i].yoffset = clamp(players[i].yoffset, players[i].y-players[i].sHeight+config.border, players[i].y-config.border);
+    if(players[i].xoffset < players[i].x - players[i].sWidth + config.border){ //player too much to the right
+      players[i].xoffset += (players[i].x - players[i].sWidth + config.border - players[i].xoffset) * speed;
+    }
+    else if(players[i].xoffset > players[i].x - config.border){ //player too much to the left
+      players[i].xoffset += (players[i].x - config.border - players[i].xoffset) * speed;
+    }
+
+    if(players[i].yoffset < players[i].y - players[i].sHeight + config.border){ //player too much down
+      players[i].yoffset += (players[i].y - players[i].sHeight + config.border - players[i].yoffset) * speed;
+    }
+    else if(players[i].yoffset > players[i].y - config.border){ //player too much up
+      players[i].yoffset += (players[i].y - config.border - players[i].yoffset) * speed;
+    }
 
     players[i].xoffset = clamp(players[i].xoffset, 0, players[i].roomWidth-players[i].sWidth-1);
     players[i].yoffset = clamp(players[i].yoffset, 0, players[i].roomHeight-players[i].sHeight-1);
@@ -171,6 +209,8 @@ function movePlayers(){
     var bottom = (players[i].y+config.playerSize/2)/config.tileSize >> 0;
     var left = (players[i].x-config.playerSize/2)/config.tileSize >> 0;
     var right = (players[i].x+config.playerSize/2)/config.tileSize >> 0;
+
+    console.log(left + " " + top);
 
     if(rooms[pRoom].grid[top][left] === "1" || rooms[pRoom].grid[top][right] === "1" || rooms[pRoom].grid[bottom][left] === "1" || rooms[pRoom].grid[bottom][right] === "1"){
       players[i].dead = true;
@@ -181,14 +221,14 @@ function movePlayers(){
       if(index > -1) players.splice(index, 1);
     }
 
-    if(left >= rooms[pRoom].finishl && right <= rooms[pRoom].finishr && top >= rooms[pRoom].finishu && bottom <= rooms[pRoom].finishd){
-      players[i].room++;
-      if(players[i].room >= rooms.length) players[i].room = rooms.length - 1;
-      players[i].x = rooms[players[i].room].startx * config.tileSize;
-      players[i].y = rooms[players[i].room].starty * config.tileSize;
-      players[i].roomWidth = rooms[players[i].room].grid[0].length * config.tileSize;
-      players[i].roomHeight = rooms[players[i].room].grid.length * config.tileSize;
-      sockets[players[i].id].emit("newRoom", players[i], rooms[players[i].room].grid);
+    for(var j=0;j<campfires[pRoom].length;j++){ //refresh player light
+      if((left === campfires[pRoom][j].x || right === campfires[pRoom][j].x) &&  (top === campfires[pRoom][j].y || bottom === campfires[pRoom][j].y)){
+        players[i].light = 1.0;
+      }
+    }
+
+    if(left >= rooms[pRoom].finishl && right <= rooms[pRoom].finishr && top >= rooms[pRoom].finishu && bottom <= rooms[pRoom].finishd){ //finish level
+      loadNextLevel(players[i]);
     }
   }
 }
@@ -204,9 +244,9 @@ function update(){
         pp.x-config.playerSize/2 < p.xoffset+p.sWidth &&
         pp.y+config.playerSize/2 > p.yoffset &&
         pp.y-config.playerSize/2 < p.yoffset+p.sHeight &&
-        p.room === pp.room) playersSection.push({x: pp.x, y: pp.y, hue: pp.hue});
+        p.room === pp.room) playersSection.push({x: pp.x, y: pp.y, hue: pp.hue, light: pp.light});
     });
-    var player = {x: p.x, y: p.y, xoffset: p.xoffset, yoffset: p.yoffset};
+    var player = {x: p.x, y: p.y, xoffset: p.xoffset, yoffset: p.yoffset, light: p.light};
     sockets[p.id].emit("newPosition", player, playersSection, players.length);
 
     var lightsSection = [];
