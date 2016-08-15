@@ -13,10 +13,11 @@ http.listen(port, function(){
 });
 
 var config = {
-  "tileSize": 50,
-  "radius": 100,
-  "border": 300,
-  "playerSize": 24
+  "tileSize": 50,  //side length of tile (tiles are square)
+  "radius": 100,   //radius of light
+  "pradius": 200, //radius of player light
+  "border": 300,   //border where scrolling begins
+  "playerSize": 24 //side length of player (player is square)
 };
 var speed = 0.2;
 var lightLength = 5*60*1000; //5 minutes
@@ -238,11 +239,11 @@ function update(){
     var playersSection = [];
     players.forEach(function(pp){
       if(p.id !== pp.id &&
-        pp.x+config.playerSize/2 > p.xoffset &&
-        pp.x-config.playerSize/2 < p.xoffset+p.sWidth &&
-        pp.y+config.playerSize/2 > p.yoffset &&
-        pp.y-config.playerSize/2 < p.yoffset+p.sHeight &&
-        p.room === pp.room) playersSection.push({x: pp.x, y: pp.y, hue: pp.hue, light: pp.light});
+        p.room === pp.room &&
+        pp.x+config.pradius > p.xoffset &&
+        pp.x-config.pradius < p.xoffset+p.sWidth &&
+        pp.y+config.pradius > p.yoffset &&
+        pp.y-config.pradius < p.yoffset+p.sHeight) playersSection.push({x: pp.x, y: pp.y, hue: pp.hue, light: pp.light});
     });
     var player = {x: p.x, y: p.y, xoffset: p.xoffset, yoffset: p.yoffset, light: p.light};
     sockets[p.id].emit("newPosition", player, playersSection, players.length);

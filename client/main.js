@@ -11,9 +11,10 @@ ct.focus();
 var config = {
   "tileSize": 50,  //side length of tile (tiles are square)
   "radius": 100,   //radius of light
-  "pradius": 200, //radius of player light
+  "pradius": 200, //radius of player light (torch)
   "border": 300,   //border where scrolling begins
-  "playerSize": 24 //side length of player (player is square)
+  "playerSize": 24, //side length of player (player is square)
+  "fireradius": 150 //radius of campfire light
 };
 
 var socket; //socket connection with server
@@ -240,7 +241,7 @@ function drawLights(){
   }
 
   for(var j=0;j<campfires.length;j++){
-    drawSingleLight(campfires[j].x * config.tileSize - player.xoffset, campfires[j].y * config.tileSize - player.yoffset, config.pradius, 1);
+    drawSingleLight(campfires[j].x * config.tileSize - player.xoffset, campfires[j].y * config.tileSize - player.yoffset, config.fireradius, 1);
   }
 
   //draw player lights
