@@ -4,39 +4,7 @@
   <meta charset="utf8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
   <title>Enlighten</title>
-  <style>
-    html, body{
-      background-color: #000;
-      margin: 0;
-      padding: 0;
-    }
-    canvas{
-      position: absolute !important;
-      margin: 0;
-      padding: 0;
-      width: 100%;
-      height: 100%;
-    }
-    #display{
-      position: absolute;
-      font-size: 18px;
-      background: rgba(0, 0, 0, 0.5);
-      color: #fff;
-      z-index: 10;
-    }
-    #menu{
-      position: absolute;
-      color: white;
-      text-align: center;
-      width: 100%;
-      z-index: 10;
-    }
-    #startbtn{
-      margin: 0 auto;
-      margin-top: 100px;
-    }
-  </style>
-  <!-- <link rel="stylesheet" href="css/main.css"/> -->
+  <link rel="stylesheet" type="text/css" href="main.css" />
 </head>
 <body>
   <div id="display">
@@ -46,21 +14,30 @@
     <div id="numPlayer">Players: 0</div>
   </div>
   <div id="menu">
-    <button id="startbtn">Start</button>
+    <h1 id="title">Enlighten</h1>
     <div id="instructions">
-      <p>Enlighten - a simple webgame</p>
-      <p>Controls: WASD or Arrow Keys to move around</p>
-      <p>Goal: Get to the end of the mazes</p>
+      <div style="margin:0 200px;">
+        <div style="width:50%;float:left;">
+          <p>Controls</p>
+          <p>WASD or Arrow Keys to move around</p>
+        </div>
+        <div style="width:50%;display:inline-block;">
+          <p>Goal</p>
+          <p>Get to the end of the mazes</p>
+        </div>
+      </div>
       <p>Be careful: Each time you collide with a wall, you leave a light, and return to the start of the maze</p>
       <p>Tip: Pick up a temporary light from the permanent light source</p>
       <p>Play together: the more players online, the easier it is to complete a level</p>
     </div>
+    <button id="startbtn">Start</button>
   </div>
   <div id="game">
     <canvas id="canbot"></canvas>
     <canvas tabindex="1" id="cantop"></canvas>
   </div>
   <script type="text/javascript" src="https://cdn.socket.io/socket.io-1.3.7.js"></script>
+  <script type="text/javascript" src="info.js"></script>
   <script type="text/javascript" src="main.js"></script>
 </body>
 </html>

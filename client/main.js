@@ -51,16 +51,9 @@ lightGradient.addColorStop(1,"transparent");
 var debug = false;
 
 window.onload = function(){
-  var startBtn = document.getElementById("startbtn");
-  startBtn.onclick = function(){
+  document.getElementById("startbtn").onclick = function(){
     startGame();
   };
-
-  if(debug){
-    ct.addEventListener("mousedown", function(event){
-      socket.emit("addLight", {x: event.pageX + player.xoffset, y: event.pageY + player.yoffset});
-    });
-  }
 
   ct.addEventListener("keydown", function(event){ //press key down
     var key = event.which || event.keyCode;
@@ -81,21 +74,6 @@ window.onload = function(){
   });
 };
 
-window.requestAnimFrame = (function(){
-  return  window.requestAnimationFrame       ||
-          window.webkitRequestAnimationFrame ||
-          window.mozRequestAnimationFrame    ||
-          function(callback){
-            window.setTimeout(callback, 1000 / 60);
-          };
-})();
-
-window.cancelAnimFrame = (function(handle) {
-    return  window.cancelAnimationFrame       ||
-            window.webkitCancelAnimationFrame ||
-            window.mozCancelAnimationFrame;
-})();
-
 function startGame(){
   if(!socket){
     socket = io();
@@ -105,7 +83,7 @@ function startGame(){
   socket.emit("startClient");
 }
 
-function moveEncode(){ //enocde move into 4-bit
+function moveEncode(){ //encode move into 4-bit
   var result = 0;
   if(move.up) result += 1;
   if(move.down) result += 2;
@@ -117,7 +95,7 @@ function moveEncode(){ //enocde move into 4-bit
 function setupSocket(){
   socket.on("startServer", function(newPlayer, otherPlayers, room, newCampfires){
     player = newPlayer;
-    document.getElementById("room").innerHTML = "Room: " + player.room;
+    Info.setRoom(player.room);
     player.sWidth = window.innerWidth;
     player.sHeight = window.innerHeight;
     others = otherPlayers;
@@ -132,46 +110,45 @@ function setupSocket(){
     socket.emit("confirm", player);
   });
 
+  socket.on("newNumPlayers", function (numPlayers) {
+    Info.setNumPlayer(numPlayers);
+  });
+
   socket.on("newLights", function(newLights){
     lights = newLights;
   });
 
-  socket.on("newPosition", function(newPlayer, newOthers, numPlayers){
+  socket.on("newPosition", function(newPlayer, newOthers){
     player.x = newPlayer.x;
     player.y = newPlayer.y;
     player.light = newPlayer.light;
-    if(player.xoffset !== newPlayer.xoffset || player.yoffset !== newPlayer.yoffset) roomDraw = true;
-    player.xoffset = newPlayer.xoffset;
-    player.yoffset = newPlayer.yoffset;
+    if(player.xoffset !== newPlayer.xoffset || player.yoffset !== newPlayer.yoffset) {
+      roomDraw = true;
+      player.xoffset = newPlayer.xoffset;
+      player.yoffset = newPlayer.yoffset;
+    }
     others = newOthers;
-
-    document.getElementById("numPlayer").innerHTML = "Players: " + numPlayers;
   });
 
   socket.on("newRoom", function(newPlayer, newRoom, newCampfires){
     player = newPlayer;
-    document.getElementById("room").innerHTML = "Room: " + player.room;
+    Info.setRoom(player.room);
     updateRoom(newRoom);
     campfires = newCampfires;
   });
 
   setInterval(function(){
-    document.getElementById("fps").innerHTML = "FPS: "+Math.round(1000/(time-oldtime));
+    Info.setFps(Math.round(1000/(time-oldtime)));
     socket.emit("ping", new Date().getTime());
   }, 1000);
 
   socket.on("pong", function(date){
-    document.getElementById("ping").innerHTML = "Ping: "+ (new Date().getTime() - date);
+    Info.setPing(new Date().getTime() - date);
   });
 
   socket.on("dead", function(newPlayer){
     player = newPlayer;
     window.setTimeout(function(){
-      /*if(animloopHandle){
-          window.cancelAnimationFrame(animloopHandle);
-          animloopHandle = undefined;
-      }*/
-      //startGame();
       socket.emit("respawn");
     }, 1000);
   });
@@ -182,8 +159,9 @@ function updateRoom(room){
   roomBuffer.height = room.length*config.tileSize;
   for(var i=0;i<room.length;i++){
     for(var j=0;j<room[i].length;j++){
-      if(room[i][j] === "1") rbx.fillStyle = "#ff0000";
-      else rbx.fillStyle = "#00ff00";
+      if(room[i][j] === "1") rbx.fillStyle = "#410";
+      else if(room[i][j] === "2") rbx.fillStyle = "#f77";
+      else rbx.fillStyle = "#ffd";
       rbx.fillRect(j*config.tileSize, i*config.tileSize, config.tileSize, config.tileSize);
     }
   }
@@ -191,7 +169,7 @@ function updateRoom(room){
 }
 
 function animloop(){
-  animloopHandle = requestAnimFrame(animloop);
+  animloopHandle = window.requestAnimationFrame(animloop);
   gameLoop();
 }
 
@@ -201,7 +179,7 @@ function gameLoop(){
     roomDraw = false;
   }
 
-  ctx.fillStyle = "#000000";
+  ctx.fillStyle = "black";
   ctx.fillRect(0, 0, player.sWidth, player.sHeight);
   drawLights();
   drawOthers();
@@ -219,7 +197,7 @@ function drawRoom(){
 function drawLights(){
   ctx.globalCompositeOperation = "destination-out";
   if(debug){ //make maze visible
-    ctx.fillStyle = "rgba(0,0,0,1)";
+    ctx.fillStyle = "rgba(0,0,0,0.3)";
     ctx.fillRect(0, 0, player.sWidth, player.sHeight);
   }
 

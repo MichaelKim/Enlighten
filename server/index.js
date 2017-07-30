@@ -75,6 +75,8 @@ io.on("connection", function(socket){
     players.push(currPlayer);
     sockets[currPlayer.id] = socket;
     console.log("New Player: " + currPlayer.id);
+
+    socket.emit("newNumPlayers", players.length);
   });
 
   socket.on("respawn", function(){
@@ -88,10 +90,6 @@ io.on("connection", function(socket){
     };
     currPlayer.dead = false;
     socket.emit("startServer", currPlayer, players, rooms[currPlayer.room].grid, campfires[currPlayer.room]);
-  });
-
-  socket.on("addLight", function(data){ //only used in debug
-    newLight(data.x, data.y, currPlayer.room);
   });
 
   socket.on("playerMove", function(data){
@@ -115,6 +113,7 @@ io.on("connection", function(socket){
     var index = findID(currPlayer.id);
     if(index > -1) players.splice(index, 1);
     console.log("Player dc: " + currPlayer.id);
+    socket.broadcast.emit("newNumPlayers", players.length);
   });
 });
 
@@ -152,13 +151,6 @@ function newLight(xx, yy, room){
     }, 20);
   }, lightLength);
 }
-
-/*function find(array, element, property){
-  for(var i=0;i<array.length;i++){
-    if(array[i][property] === element) return i;
-  }
-  return -1;
-}*/
 
 function loadNextLevel(player){
   player.room++;
@@ -226,7 +218,7 @@ function movePlayers(){
       }
     }
 
-    if(left >= rooms[pRoom].finishl && right <= rooms[pRoom].finishr && top >= rooms[pRoom].finishu && bottom <= rooms[pRoom].finishd){ //finish level
+    if(rooms[pRoom].grid[top][left] === "2" || rooms[pRoom].grid[top][right] === "2" || rooms[pRoom].grid[bottom][left] === "2" || rooms[pRoom].grid[bottom][right] === "2"){
       loadNextLevel(players[i]);
     }
   }
@@ -246,7 +238,7 @@ function update(){
         pp.y-config.pradius < p.yoffset+p.sHeight) playersSection.push({x: pp.x, y: pp.y, hue: pp.hue, light: pp.light});
     });
     var player = {x: p.x, y: p.y, xoffset: p.xoffset, yoffset: p.yoffset, light: p.light};
-    sockets[p.id].emit("newPosition", player, playersSection, players.length);
+    sockets[p.id].emit("newPosition", player, playersSection);
 
     var lightsSection = [];
     for(var j=0;j<lights[p.room].length;j++){
