@@ -86,19 +86,16 @@ function setupSocket(){
     Info.setNumPlayer(numPlayers);
   });
 
-  socket.on("newLights", function(newLights){
-    lights = newLights;
-  });
-
-  socket.on("newPosition", function(newPlayer, newOthers){
+  socket.on("update", function(newPlayer, newOthers, newLights){
     if(player.x !== newPlayer.x || player.y !== newPlayer.y) {
       player.x = newPlayer.x;
       player.y = newPlayer.y;
-      calculateOffset();
-      roomDraw = true;
     }
+    calculateOffset();
+    roomDraw = true;
     player.light = newPlayer.light;
     others = newOthers;
+    lights = newLights;
   });
 
   socket.on("newRoom", function(newPlayer, roomNum, newRoom, newCampfires){
@@ -140,19 +137,19 @@ function calculateOffset() {
     offset.y += (player.y - config.border - offset.y) * speed;
   }
 
-  if(offset.x < 0) {
-    offset.x = 0;
-  }
-  else if(offset.x > player.roomWidth - window.innerWidth - 1) {
-    offset.x = player.roomWidth - window.innerWidth - 1
-  }
-
-  if(offset.y < 0) {
-    offset.y = 0;
-  }
-  else if(offset.y > player.roomHeight - window.innerHeight - 1) {
-    offset.y = player.roomHeight - window.innerHeight - 1
-  }
+  // if(offset.x < 0) {
+  //   offset.x = 0;
+  // }
+  // else if(offset.x > player.roomWidth - window.innerWidth - 1) {
+  //   offset.x = player.roomWidth - window.innerWidth - 1
+  // }
+  //
+  // if(offset.y < 0) {
+  //   offset.y = 0;
+  // }
+  // else if(offset.y > player.roomHeight - window.innerHeight - 1) {
+  //   offset.y = player.roomHeight - window.innerHeight - 1
+  // }
 }
 
 function updateRoom(room){
@@ -160,9 +157,9 @@ function updateRoom(room){
   roomBuffer.height = room.length*config.tileSize;
   for(var i=0;i<room.length;i++){
     for(var j=0;j<room[i].length;j++){
-      if(room[i][j] === "1") rbx.fillStyle = "#410";
-      else if(room[i][j] === "2") rbx.fillStyle = "#f77";
-      else rbx.fillStyle = "#ffd";
+      if(room[i][j] === "1") rbx.fillStyle = "#410"; // wall
+      else if(room[i][j] === "2") rbx.fillStyle = "#7f7"; // end
+      else rbx.fillStyle = "#ffd"; // floor
       rbx.fillRect(j*config.tileSize, i*config.tileSize, config.tileSize, config.tileSize);
     }
   }

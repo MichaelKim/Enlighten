@@ -192,56 +192,64 @@ function loadNextLevel(player){
 }
 
 function movePlayers(){
-  for(var i=0;i<players.length;i++){
-    if(players[i].dead) continue;
+  players.forEach(function(p) {
+    if(p.dead) return;
 
     //decay player light
-    if(players[i].light > 0) players[i].light -= plightDecay;
-    if(players[i].light < 0) players[i].light = 0;
+    if(p.light > 0) p.light -= plightDecay;
+    if(p.light < 0) p.light = 0;
 
     //move player
-    var pRoom = players[i].room;
-    if(players[i].move.up) players[i].y -= 5;
-    if(players[i].move.down) players[i].y += 5;
-    if(players[i].move.left) players[i].x -= 5;
-    if(players[i].move.right) players[i].x += 5;
+    var pRoom = p.room;
+    if(p.move.up) p.y -= 5;
+    if(p.move.down) p.y += 5;
+    if(p.move.left) p.x -= 5;
+    if(p.move.right) p.x += 5;
 
-    players[i].x = clamp(players[i].x, config.playerSize/2, rooms[pRoom].width-config.playerSize/2-1);
-    players[i].y = clamp(players[i].y, config.playerSize/2, rooms[pRoom].height-config.playerSize/2-1);
+    p.x = clamp(p.x, config.playerSize/2, rooms[pRoom].width-config.playerSize/2-1);
+    p.y = clamp(p.y, config.playerSize/2, rooms[pRoom].height-config.playerSize/2-1);
 
-    var top = (players[i].y-config.playerSize/2)/config.tileSize >> 0;
-    var bottom = (players[i].y+config.playerSize/2)/config.tileSize >> 0;
-    var left = (players[i].x-config.playerSize/2)/config.tileSize >> 0;
-    var right = (players[i].x+config.playerSize/2)/config.tileSize >> 0;
+    var top = (p.y-config.playerSize/2)/config.tileSize >> 0;
+    var bottom = (p.y+config.playerSize/2)/config.tileSize >> 0;
+    var left = (p.x-config.playerSize/2)/config.tileSize >> 0;
+    var right = (p.x+config.playerSize/2)/config.tileSize >> 0;
 
-    if(rooms[pRoom].grid[top][left] === "1" || rooms[pRoom].grid[top][right] === "1" || rooms[pRoom].grid[bottom][left] === "1" || rooms[pRoom].grid[bottom][right] === "1"){
-      players[i].dead = true;
-      sockets[players[i].id].emit("dead");
-      newLight(players[i].x, players[i].y, pRoom);
+    if(rooms[pRoom].grid[top][left] === "1" || rooms[pRoom].grid[top][right] === "1" ||
+       rooms[pRoom].grid[bottom][left] === "1" || rooms[pRoom].grid[bottom][right] === "1"){
 
-      var index = findID(players[i].id);
+      p.dead = true;
+      sockets[p.id].emit("dead");
+      newLight(p.x, p.y, pRoom);
+
+      var index = findID(p.id);
       if(index > -1) players.splice(index, 1);
 
       return;
     }
 
-    if(rooms[pRoom].grid[top][left] === "2" || rooms[pRoom].grid[top][right] === "2" || rooms[pRoom].grid[bottom][left] === "2" || rooms[pRoom].grid[bottom][right] === "2"){
-      loadNextLevel(players[i]);
+    if(rooms[pRoom].grid[top][left] === "2" || rooms[pRoom].grid[top][right] === "2" ||
+       rooms[pRoom].grid[bottom][left] === "2" || rooms[pRoom].grid[bottom][right] === "2"){
+
+      loadNextLevel(p);
 
       return;
     }
 
     for(var j=0;j<campfires[pRoom].length;j++){ //refresh player light
-      if((left === campfires[pRoom][j].x || right === campfires[pRoom][j].x) &&  (top === campfires[pRoom][j].y || bottom === campfires[pRoom][j].y)){
-        players[i].light = 1.0;
+      if((left === campfires[pRoom][j].x || right === campfires[pRoom][j].x) &&
+         (top === campfires[pRoom][j].y || bottom === campfires[pRoom][j].y)){
+
+        p.light = 1.0;
       }
     }
-  }
+  });
 }
 
 function update(){
   players.forEach(function(p){
     if(p.dead) return;
+
+    var player = {x: p.x, y: p.y, light: p.light};
 
     var others = [];
     players.forEach(function(pp){
@@ -252,8 +260,6 @@ function update(){
         pp.y+config.pradius > p.y-p.screenHeight &&
         pp.y-config.pradius < p.y+p.screenHeight) others.push({x: pp.x, y: pp.y, hue: pp.hue, light: pp.light});
     });
-    var player = {x: p.x, y: p.y, light: p.light};
-    sockets[p.id].emit("newPosition", player, others);
 
     var lightsSection = [];
     for(var j=0;j<lights[p.room].length;j++){
@@ -262,7 +268,8 @@ function update(){
          lights[p.room][j].y+config.radius > p.y-p.screenHeight &&
          lights[p.room][j].y-config.radius < p.y+p.screenHeight) lightsSection.push(lights[p.room][j]);
     }
-    sockets[p.id].emit("newLights", lightsSection);
+
+    sockets[p.id].emit("update", player, others, lightsSection);
   });
 }
 
