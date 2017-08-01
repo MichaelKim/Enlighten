@@ -16,22 +16,33 @@ var config = {
   "playerSize": 24, //side length of player (player is square)
   "fireradius": 150 //radius of campfire light
 };
-
-var socket; //socket connection with server
-var lights = []; //lights
-var campfires = []; //campfires
+var speed = 0.2;
 
 var roomBuffer = document.createElement("canvas"); //canvas of entire room
 var rbx = roomBuffer.getContext("2d");
 var roomDraw = true; //redraw room (due to changing view)
 
+var lightGradient = ctx.createRadialGradient(0,0,0,0,0,config.radius); //light gradient
+lightGradient.addColorStop(0,"white");
+lightGradient.addColorStop(1,"transparent");
+
+var socket; //socket connection with server
+var lights = []; //lights
+var campfires = []; //campfires
+
 //player object
 var player = {
   x: 0,        //position coords
   y: 0,
-  xoffset: 0,  //offset for view (top-left coords)
-  yoffset: 0,
-  light: 1.0
+  hue: 0,
+  light: 1.0,
+  roomWidth: 0,
+  roomHeight: 0,
+  dead: false
+};
+var offset = { //offset for view (top-left coords)
+    x: 0,
+    y: 0
 };
 var others = [];
 var move = {
@@ -42,13 +53,9 @@ var move = {
 };
 
 var animloopHandle;
-var oldtime = new Date().getTime(), time = new Date().getTime(); //for fps
-
-var lightGradient = ctx.createRadialGradient(0,0,0,0,0,config.radius); //light gradient
-lightGradient.addColorStop(0,"white");
-lightGradient.addColorStop(1,"transparent");
 
 var debug = false;
+var oldtime = new Date().getTime(), time = new Date().getTime(); //for fps
 
 window.onload = function(){
   document.getElementById("startbtn").onclick = function(){
@@ -93,21 +100,21 @@ function moveEncode(){ //encode move into 4-bit
 }
 
 function setupSocket(){
-  socket.on("startServer", function(newPlayer, otherPlayers, room, newCampfires){
+  socket.on("startServer", function(newPlayer, otherPlayers, roomNum, room, newCampfires){
+    Info.setRoom(roomNum);
     player = newPlayer;
-    Info.setRoom(player.room);
-    player.sWidth = window.innerWidth;
-    player.sHeight = window.innerHeight;
     others = otherPlayers;
 
+    calculateOffset();
     updateRoom(room);
 
     campfires = newCampfires;
+    roomDraw = true;
 
     document.getElementById("menu").style.display = "none";
     ct.focus();
 
-    socket.emit("confirm", player);
+    socket.emit("confirm", window.innerWidth, window.innerHeight);
   });
 
   socket.on("newNumPlayers", function (numPlayers) {
@@ -119,39 +126,71 @@ function setupSocket(){
   });
 
   socket.on("newPosition", function(newPlayer, newOthers){
-    player.x = newPlayer.x;
-    player.y = newPlayer.y;
-    player.light = newPlayer.light;
-    if(player.xoffset !== newPlayer.xoffset || player.yoffset !== newPlayer.yoffset) {
+    if(player.x !== newPlayer.x || player.y !== newPlayer.y) {
+      player.x = newPlayer.x;
+      player.y = newPlayer.y;
+      calculateOffset();
       roomDraw = true;
-      player.xoffset = newPlayer.xoffset;
-      player.yoffset = newPlayer.yoffset;
     }
+    player.light = newPlayer.light;
     others = newOthers;
   });
 
-  socket.on("newRoom", function(newPlayer, newRoom, newCampfires){
+  socket.on("newRoom", function(newPlayer, roomNum, newRoom, newCampfires){
     player = newPlayer;
-    Info.setRoom(player.room);
+    Info.setRoom(roomNum);
     updateRoom(newRoom);
     campfires = newCampfires;
   });
 
-  setInterval(function(){
-    Info.setFps(Math.round(1000/(time-oldtime)));
-    socket.emit("ping", new Date().getTime());
-  }, 1000);
+  if(debug) {
+    setInterval(function(){
+      Info.setFps(Math.round(1000/(time-oldtime)));
+      socket.emit("ping", new Date().getTime());
+    }, 1000);
 
-  socket.on("pong", function(date){
-    Info.setPing(new Date().getTime() - date);
-  });
+    socket.on("pong", function(date){
+      Info.setPing(new Date().getTime() - date);
+    });
+  }
 
-  socket.on("dead", function(newPlayer){
-    player = newPlayer;
-    window.setTimeout(function(){
+
+  socket.on("dead", function(){
+    player.dead = true;
+    setTimeout(function(){
       socket.emit("respawn");
     }, 1000);
   });
+}
+
+function calculateOffset() {
+  if(offset.x < player.x - window.innerWidth + config.border) {
+    offset.x += (player.x - window.innerWidth + config.border - offset.x) * speed;
+  }
+  else if(offset.x > player.x - config.border) {
+    offset.x += (player.x - config.border - offset.x) * speed;
+  }
+
+  if(offset.y < player.y - window.innerHeight + config.border) {
+    offset.y += (player.y - window.innerHeight + config.border - offset.y) * speed;
+  }
+  else if(offset.y > player.y - config.border) {
+    offset.y += (player.y - config.border - offset.y) * speed;
+  }
+
+  if(offset.x < 0) {
+    offset.x = 0;
+  }
+  else if(offset.x > player.roomWidth - window.innerWidth - 1) {
+    offset.x = player.roomWidth - window.innerWidth - 1
+  }
+
+  if(offset.y < 0) {
+    offset.y = 0;
+  }
+  else if(offset.y > player.roomHeight - window.innerHeight - 1) {
+    offset.y = player.roomHeight - window.innerHeight - 1
+  }
 }
 
 function updateRoom(room){
@@ -180,7 +219,7 @@ function gameLoop(){
   }
 
   ctx.fillStyle = "black";
-  ctx.fillRect(0, 0, player.sWidth, player.sHeight);
+  ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
   drawLights();
   drawOthers();
   if(!player.dead) drawPlayer();
@@ -190,44 +229,43 @@ function gameLoop(){
 }
 
 function drawRoom(){
-  cbx.drawImage(roomBuffer, -player.xoffset, -player.yoffset);
-  //cbx.drawImage(roomBuffer, player.xoffset, player.yoffset, player.sWidth, player.sHeight, 0, 0, player.sWidth, player.sHeight);
+  cbx.drawImage(roomBuffer, -offset.x, -offset.y);
 }
 
 function drawLights(){
   ctx.globalCompositeOperation = "destination-out";
   if(debug){ //make maze visible
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
-    ctx.fillRect(0, 0, player.sWidth, player.sHeight);
+    ctx.fillStyle = "rgba(0,0,0,0.2)";
+    ctx.fillRect(0, 0, window.innerWidth, window.innerHeight);
   }
 
   ctx.fillStyle = lightGradient;
   for(var i=0;i<lights.length;i++){
     if(lights[i].fade === 1.0){ //full sized light
-      ctx.translate(lights[i].x-player.xoffset, lights[i].y-player.yoffset);
+      ctx.translate(lights[i].x-offset.x, lights[i].y-offset.y);
       ctx.fillRect(-config.radius, -config.radius, 2*config.radius, 2*config.radius);
-      ctx.translate(-lights[i].x+player.xoffset, -lights[i].y+player.yoffset);
+      ctx.translate(-lights[i].x+offset.x, -lights[i].y+offset.y);
     }
     else{ //waning light
-      var grd = ctx.createRadialGradient(lights[i].x-player.xoffset,lights[i].y-player.yoffset,0,lights[i].x-player.xoffset,lights[i].y-player.yoffset,config.radius);
+      var grd = ctx.createRadialGradient(lights[i].x-offset.x,lights[i].y-offset.y,0,lights[i].x-offset.x,lights[i].y-offset.y,config.radius);
       grd.addColorStop(0,"black");
       grd.addColorStop(lights[i].fade,"transparent");
       ctx.fillStyle = grd;
-      ctx.fillRect(lights[i].x-config.radius-player.xoffset,lights[i].y-config.radius-player.yoffset,2*config.radius,2*config.radius);
+      ctx.fillRect(lights[i].x-config.radius-offset.x,lights[i].y-config.radius-offset.y,2*config.radius,2*config.radius);
       ctx.fillStyle = lightGradient;
     }
   }
 
   for(var j=0;j<campfires.length;j++){
-    drawSingleLight(campfires[j].x * config.tileSize - player.xoffset, campfires[j].y * config.tileSize - player.yoffset, config.fireradius, 1);
+    drawSingleLight(campfires[j].x * config.tileSize - offset.x, campfires[j].y * config.tileSize - offset.y, config.fireradius, 1);
   }
 
   //draw player lights
-  drawSingleLight(player.x - player.xoffset, player.y - player.yoffset, config.pradius, player.light);
+  drawSingleLight(player.x - offset.x, player.y - offset.y, config.pradius, player.light);
 
   //draw enemy lights
   for(var k=0;k<others.length;k++){
-    drawSingleLight(others[k].x - player.xoffset, others[k].y - player.yoffset, config.pradius, others[k].light);
+    drawSingleLight(others[k].x - offset.x, others[k].y - offset.y, config.pradius, others[k].light);
   }
 
   ctx.globalCompositeOperation = "source-over";
@@ -245,19 +283,19 @@ function drawSingleLight(x, y, radius, dim){
 function drawOthers(){
   for(var i=0;i<others.length;i++){
     ctx.fillStyle = "hsl(" + others[i].hue + ", 70%, 50%)";
-    ctx.fillRect(others[i].x-config.playerSize/2-player.xoffset, others[i].y-config.playerSize/2-player.yoffset, config.playerSize, config.playerSize);
+    ctx.fillRect(others[i].x-config.playerSize/2-offset.x, others[i].y-config.playerSize/2-offset.y, config.playerSize, config.playerSize);
   }
 }
 
 function drawPlayer(){
   //ctx.strokeStyle = 'hsl(' + player.hue + ', 80%, 40%)';
   ctx.fillStyle = "hsl(" + player.hue + ", 70%, 50%)";
-  ctx.fillRect(player.x-config.playerSize/2-player.xoffset, player.y-config.playerSize/2-player.yoffset, config.playerSize, config.playerSize);
+  ctx.fillRect(player.x-config.playerSize/2-offset.x, player.y-config.playerSize/2-offset.y, config.playerSize, config.playerSize);
 }
 
 window.addEventListener('resize', function() {
-  player.sWidth = ct.width = cb.width = window.innerWidth;
-  player.sHeight = ct.height = cb.height = window.innerHeight;
+  ct.width = cb.width = window.innerWidth;
+  ct.height = cb.height = window.innerHeight;
   roomDraw = true;
-  socket.emit("resize", player.sWidth, player.sHeight);
+  socket.emit("resize", window.innerWidth, window.innerHeight);
 });
