@@ -12,6 +12,7 @@ canvas {
   padding: 0;
   width: 100%;
   height: 100%;
+  outline: none;
 }
 
 #display {
@@ -25,6 +26,7 @@ canvas {
 
 #menu {
   position: absolute;
+  top: 10%;
   color: white;
   text-align: center;
   width: 100%;
@@ -32,5 +34,11 @@ canvas {
 }
 
 #startbtn {
-  margin: 100px auto 0 auto;
+  margin: 0 auto;
+  background-color: #fff;
+  color: black;
+  padding: 15px 30px;
+  font-size: 20px;
+  border-radius: 5px;
+  outline: none;
 }
